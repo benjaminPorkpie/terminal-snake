@@ -3,6 +3,7 @@ import random
 import sys
 import subprocess
 from pathlib import Path
+import time
 
 data_folder = Path("data")
 file_path = data_folder / "high-score.txt"
@@ -34,20 +35,6 @@ def main(stdscr):
     def is_valid_direction_change(current, new):
         return new != opposites(current)
 
-    def pause_game(stdscr):
-        stdscr.nodelay(0)
-
-        stdscr.clear()
-        stdscr.addstr(HEIGHT // 2, WIDTH // 2 - 5, "PAUSED")
-        stdscr.refresh()
-
-        while True:
-            key = stdscr.getch()
-            if key == ord('p'):
-                break
-
-        stdscr.nodelay(1)
-
     with open("data/high-score.txt", "r", encoding="utf-8") as f:
             high_score_data = f.read()
 
@@ -57,6 +44,8 @@ def main(stdscr):
     stdscr.timeout(100)
 
     paused = False
+    last_move = time.time()
+    move_delay = 0.1
 
     # Colors
     curses.init_pair(1, curses.COLOR_GREEN, curses.COLOR_BLACK)
@@ -96,7 +85,8 @@ def main(stdscr):
         if key == ord('q'):
             return
         elif key == ord('p'):
-            pause_game(stdscr)
+            paused = not paused
+            curses.flushinp()
         elif key == curses.KEY_UP or key == ord("w"):
             new_direction = (-1, 0)
         elif key == curses.KEY_DOWN or key == ord("s"):
@@ -108,6 +98,18 @@ def main(stdscr):
 
         if new_direction != opposites[direction]:
             direction = new_direction
+
+        if paused:
+            stdscr.addstr(HEIGHT // 2, WIDTH // 2 - 5, "PAUSED")
+            stdscr.refresh()
+            continue
+
+        now = time.time()
+        if now - last_move < move_delay:
+            stdscr.refresh()
+            continue
+
+        last_move = now
 
         # Move snake
         head_y, head_x = snake[0]
