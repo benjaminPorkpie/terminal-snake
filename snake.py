@@ -118,6 +118,8 @@ def run_game(stdscr):
     curses.curs_set(0)
     stdscr.nodelay(1)
 
+    h, w = stdscr.getmaxyx()
+
     snake = [(HEIGHT // 2, WIDTH // 2)]
     direction = (0, 1)
 
@@ -125,9 +127,15 @@ def run_game(stdscr):
     min_x, max_x = 1, WIDTH - 2
     min_y, max_y = 1, HEIGHT - 2
 
-    # Full arena bounds (snake can roam outside walls, wrapping)
-    arena_rows = HEIGHT + 2   # some buffer
-    arena_cols = WIDTH + 2
+    def is_wall(y, x):
+        on_top    = (y == min_y - 1)
+        on_bottom = (y == max_y + 1)
+        on_left   = (x == min_x - 1)
+        on_right  = (x == max_x + 1)
+        in_col_range = (min_x - 1 <= x <= max_x + 1)
+        in_row_range = (min_y - 1 <= y <= max_y + 1)
+        return ((on_top or on_bottom) and in_col_range) or \
+               ((on_left or on_right) and in_row_range)
 
     def spawn_food():
         while True:
@@ -138,27 +146,35 @@ def run_game(stdscr):
             if f not in snake:
                 return f
 
+    def spawn_special_food():
+        """Spawn within full screen bounds, not on walls, not on snake or food."""
+        screen_min_y = 0
+        screen_max_y = min(h - 3, HEIGHT + 4)
+        screen_min_x = 0
+        screen_max_x = min(w - 2, WIDTH + 4)
+        attempts = 0
+        while attempts < 500:
+            fy = random.randint(screen_min_y, screen_max_y)
+            fx = random.randint(screen_min_x, screen_max_x)
+            if not is_wall(fy, fx) and (fy, fx) not in snake and (fy, fx) != food:
+                return (fy, fx)
+            attempts += 1
+        return spawn_food()  # fallback
+
     food = spawn_food()
     score = 0
+    normal_food_count = 0   # how many normal food eaten total
+
+    special_food = None     # (y, x) or None when not active
+    yellow_snake = False    # snake turns yellow after eating special food
 
     move_delay = 0.1
     last_move = time.time()
 
     # --- Jumping state ---
-    jumping_ticks = 0       # ticks of invincibility remaining
-    jump_cooldown_end = 0.0  # timestamp when cooldown expires
-    JUMP_COOLDOWN = 5.0      # seconds
-
-    def is_wall(y, x):
-        """Returns True if (y, x) is a wall tile."""
-        on_top    = (y == min_y - 1)
-        on_bottom = (y == max_y + 1)
-        on_left   = (x == min_x - 1)
-        on_right  = (x == max_x + 1)
-        in_col_range = (min_x - 1 <= x <= max_x + 1)
-        in_row_range = (min_y - 1 <= y <= max_y + 1)
-        return (on_top or on_bottom) and in_col_range or \
-               (on_left or on_right) and in_row_range
+    jumping_ticks = 0
+    jump_cooldown_end = 0.0
+    JUMP_COOLDOWN = 5.0
 
     while True:
         key = stdscr.getch()
@@ -192,26 +208,38 @@ def run_game(stdscr):
         hy, hx = snake[0]
         new_head = (hy + direction[0], hx + direction[1])
 
-        # Determine if new head is on a wall
         head_on_wall = is_wall(new_head[0], new_head[1])
 
         if jumping_ticks > 0:
-            # Invincible: walls don't kill, self-collision doesn't kill
             jumping_ticks -= 1
-            if jumping_ticks == 0:
-                # Cooldown starts now (already set when jump was activated)
-                pass
         else:
-            # Normal: wall or self = death
             if head_on_wall or new_head in snake:
                 save_high_score(score)
                 return score
 
         snake.insert(0, new_head)
 
+        # --- Eat normal food ---
         if new_head == food:
             score += 1
+            normal_food_count += 1
             food = spawn_food()
+            # Spawn special food every 25 normal food eaten (if not already active)
+            if normal_food_count % 25 == 0 and special_food is None:
+                special_food = spawn_special_food()
+
+        # --- Eat special food: only while jumping ---
+        elif special_food is not None and new_head == special_food:
+            if jumping_ticks > 0:
+                # Halve snake length, keep score, turn snake yellow
+                half = max(1, len(snake) // 2)
+                snake = snake[:half]
+                yellow_snake = True
+                special_food = None
+            else:
+                # Not jumping — pass through, don't eat
+                snake.pop()
+
         else:
             snake.pop()
 
@@ -232,14 +260,28 @@ def run_game(stdscr):
             except curses.error:
                 pass
 
-        # Draw food
+        # Draw normal food
         try:
             stdscr.addch(food[0], food[1], "●", curses.color_pair(2))
         except curses.error:
             pass
 
-        # Draw snake (cyan while jumping, red otherwise)
-        snake_color = curses.color_pair(3) if jumping_ticks > 0 else curses.color_pair(1)
+        # Draw special food (yellow star, bold)
+        if special_food is not None:
+            try:
+                stdscr.addch(special_food[0], special_food[1], "*",
+                             curses.color_pair(4) | curses.A_BOLD)
+            except curses.error:
+                pass
+
+        # Draw snake: cyan while jumping, yellow if yellow_snake, else green
+        if jumping_ticks > 0:
+            snake_color = curses.color_pair(3)
+        elif yellow_snake:
+            snake_color = curses.color_pair(4)
+        else:
+            snake_color = curses.color_pair(1)
+
         for y, x in snake:
             try:
                 stdscr.addch(y, x, "O", snake_color)
@@ -258,7 +300,8 @@ def run_game(stdscr):
             jump_status = "[READY]"
 
         try:
-            stdscr.addstr(HEIGHT, 0, f"Score: {score}   High Score: {load_high_score()}   {jump_status}")
+            stdscr.addstr(HEIGHT, 0,
+                f"Score: {score}   High: {load_high_score()}   {jump_status}")
         except curses.error:
             pass
 
@@ -269,9 +312,10 @@ def main(stdscr):
     curses.start_color()
     curses.use_default_colors()
 
-    curses.init_pair(1, curses.COLOR_GREEN, curses.COLOR_BLACK)
-    curses.init_pair(2, curses.COLOR_RED, curses.COLOR_BLACK)
-    curses.init_pair(3, curses.COLOR_CYAN, curses.COLOR_BLACK)  # jumping color
+    curses.init_pair(1, curses.COLOR_GREEN, curses.COLOR_BLACK)   # normal snake
+    curses.init_pair(2, curses.COLOR_RED, curses.COLOR_BLACK)     # normal food
+    curses.init_pair(3, curses.COLOR_CYAN, curses.COLOR_BLACK)    # jumping snake
+    curses.init_pair(4, curses.COLOR_YELLOW, curses.COLOR_BLACK)  # special food + yellow snake
 
     while True:
         menu_choice = main_menu(stdscr)
