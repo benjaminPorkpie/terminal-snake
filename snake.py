@@ -48,10 +48,6 @@ def main_menu(stdscr):
         title = "SNAKE GAME"
         stdscr.addstr(5, (w - len(title)) // 2, title)
 
-        hint = "SPACE = Jump (invincibility) | Walls are deadly"
-        if w > len(hint):
-            stdscr.addstr(7, (w - len(hint)) // 2, hint)
-
         for i, option in enumerate(options):
             x = (w - len(option)) // 2
             y = 10 + i
@@ -257,7 +253,7 @@ def run_game(stdscr):
         elif cooldown_remaining > 0:
             jump_status = f"[COOLDOWN: {cooldown_remaining:.1f}s]"
         else:
-            jump_status = "[JUMP READY - SPACE]"
+            jump_status = "[READY]"
 
         try:
             stdscr.addstr(HEIGHT, 0, f"Score: {score}   High Score: {load_high_score()}   {jump_status}")
