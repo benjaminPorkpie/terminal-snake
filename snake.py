@@ -194,8 +194,8 @@ def run_game(stdscr):
         elif key in [curses.KEY_RIGHT, ord("d")]:
             new_dir = (0, 1)
         elif key == ord(" "):
-            if score >= 2:
-                score -= 2
+            if score >= 1:
+                score -= 1
                 now = time.time()
                 if jumping_ticks == 0 and now >= jump_cooldown_end:
                     jumping_ticks = 5
@@ -225,7 +225,7 @@ def run_game(stdscr):
         snake.insert(0, new_head)
 
         # --- Spawn special food every 500 ticks (if not already active) ---
-        if tick_count % 500 == 0 and special_food is None:
+        if tick_count % 10000 == 0 and special_food is None:
             special_food = spawn_special_food()
 
         # --- Eat normal food ---
