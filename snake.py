@@ -175,10 +175,12 @@ def run_game(stdscr):
         elif key in [curses.KEY_RIGHT, ord("d")]:
             new_dir = (0, 1)
         elif key == ord(" "):
-            now = time.time()
-            if jumping_ticks == 0 and now >= jump_cooldown_end:
-                jumping_ticks = score + 2
-                jump_cooldown_end = now + JUMP_COOLDOWN
+            if score >= 2:
+                score -= 2
+                now = time.time()
+                if jumping_ticks == 0 and now >= jump_cooldown_end:
+                    jumping_ticks = 5
+                    jump_cooldown_end = now + JUMP_COOLDOWN
 
         if new_dir != opposites[direction]:
             direction = new_dir
@@ -215,7 +217,7 @@ def run_game(stdscr):
 
         stdscr.erase()
 
-        # Draw walls (always visible)
+        # Draw walls
         for x in range(min_x - 1, max_x + 2):
             try:
                 stdscr.addch(min_y - 1, x, "#")
