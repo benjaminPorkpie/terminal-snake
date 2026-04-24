@@ -191,10 +191,10 @@ def run_game(stdscr):
             stdscr.addch(y, min_x - 1, "#")
             stdscr.addch(y, max_x + 1, "#")
 
-        stdscr.addch(food[0], food[1], "¤")
+        stdscr.addch(food[0], food[1], "●", curses.color_pair(2))
 
         for y, x in snake:
-            stdscr.addch(y, x, "O")
+            stdscr.addch(y, x, "█", curses.color_pair(1))
 
         stdscr.addstr(HEIGHT, 0, f"Score: {score}")
         stdscr.addstr(HEIGHT + 1, 0, f"High Score: {load_high_score()}")
@@ -205,6 +205,9 @@ def run_game(stdscr):
 def main(stdscr):
     curses.start_color()
     curses.use_default_colors()
+
+    curses.init_pair(1, curses.COLOR_RED, curses.COLOR_BLACK)
+    curses.init_pair(2, curses.COLOR_GREEN, curses.COLOR_BLACK)
     while True:
         menu_choice = main_menu(stdscr)
 
