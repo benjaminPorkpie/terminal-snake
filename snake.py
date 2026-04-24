@@ -201,30 +201,31 @@ def run_game(stdscr):
 
         stdscr.refresh()
 
-# ---------------- MAIN LOOP ----------------
+# ---------------- MAIN LOOP ---------------
 def main(stdscr):
     curses.start_color()
     curses.use_default_colors()
-
     while True:
-        menu = main_menu(stdscr)
+        menu_choice = main_menu(stdscr)
 
-        if menu is None:
-            break
+        if menu_choice is None:
+            break  # quit from menu
 
-        result = run_game(stdscr)
+        # run game loop (can repeat internally)
+        while True:
+            result = run_game(stdscr)
 
-        if result == "menu":
-            continue
+            if result == "menu":
+                break  # go back to main menu
 
-        choice = game_over_menu(stdscr, result)
+            choice = game_over_menu(stdscr, result)
 
-        if choice == "Play Again":
-            continue   # reruns loop → starts game again
-        elif choice == "Menu":
-            continue
-        elif choice == "Quit":
-            break
+            if choice == "Play Again":
+                continue  
+            elif choice == "Menu":
+                break  
+            elif choice == "Quit":
+                return
 
 if __name__ == "__main__":
     curses.wrapper(main)
