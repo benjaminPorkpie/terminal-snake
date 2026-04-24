@@ -30,27 +30,26 @@ def load_high_score():
         return 0
 
 def save_high_score(score):
-    current = load_high_score()
-    if score > current:
+    if score > load_high_score():
         file_path.write_text(str(score))
 
 # ---------------- MENU ----------------
 def main_menu(stdscr):
-    options = [
-        "1. Original Snake",
-        "Quit"
-    ]
+    curses.curs_set(0)
+    stdscr.nodelay(0)  # IMPORTANT: stop flicker
 
+    options = ["Original Snake", "Quit"]
     selected = 0
 
     while True:
         stdscr.clear()
         h, w = stdscr.getmaxyx()
 
-        stdscr.addstr(5, w // 2 - 6, "SNAKE GAME")
+        title = "SNAKE GAME"
+        stdscr.addstr(5, (w - len(title)) // 2, title)
 
         for i, option in enumerate(options):
-            x = w // 2 - len(option) // 2
+            x = (w - len(option)) // 2
             y = 10 + i
 
             if i == selected:
@@ -67,14 +66,15 @@ def main_menu(stdscr):
         elif key in [curses.KEY_DOWN, ord("s")]:
             selected = (selected + 1) % len(options)
         elif key in [10, 13]:
-            if selected == 1:
-                return None
-            return "play"
+            return None if selected == 1 else "play"
 
         stdscr.refresh()
 
-# ---------------- GAME OVER MENU ----------------
+# ---------------- GAME OVER ----------------
 def game_over_menu(stdscr, score):
+    curses.curs_set(0)
+    stdscr.nodelay(0)  # IMPORTANT: stop flashing
+
     options = ["Play Again", "Menu", "Quit"]
     selected = 0
 
@@ -82,12 +82,17 @@ def game_over_menu(stdscr, score):
         stdscr.clear()
         h, w = stdscr.getmaxyx()
 
-        stdscr.addstr(5, w // 2 - 5, "GAME OVER")
-        stdscr.addstr(7, w // 2 - 8, f"Score: {score}")
-        stdscr.addstr(8, w // 2 - 12, f"High Score: {load_high_score()}")
+        title = "GAME OVER"
+        stdscr.addstr(5, (w - len(title)) // 2, title)
+
+        score_text = f"Score: {score}"
+        high_text = f"High Score: {load_high_score()}"
+
+        stdscr.addstr(7, (w - len(score_text)) // 2, score_text)
+        stdscr.addstr(8, (w - len(high_text)) // 2, high_text)
 
         for i, option in enumerate(options):
-            x = w // 2 - len(option) // 2
+            x = (w - len(option)) // 2
             y = 12 + i
 
             if i == selected:
@@ -152,15 +157,13 @@ def run_game(stdscr):
         if new_dir != opposites[direction]:
             direction = new_dir
 
-        now = time.time()
-        if now - last_move < move_delay:
+        if time.time() - last_move < move_delay:
             continue
-        last_move = now
+        last_move = time.time()
 
-        head_y, head_x = snake[0]
-        new_head = (head_y + direction[0], head_x + direction[1])
+        hy, hx = snake[0]
+        new_head = (hy + direction[0], hx + direction[1])
 
-        # COLLISION
         if (
             new_head[0] < min_y or new_head[0] > max_y or
             new_head[1] < min_x or new_head[1] > max_x or
@@ -177,10 +180,9 @@ def run_game(stdscr):
         else:
             snake.pop()
 
-        # DRAW
         stdscr.erase()
 
-        # Borders
+        # borders
         for x in range(min_x - 1, max_x + 2):
             stdscr.addch(min_y - 1, x, "#")
             stdscr.addch(max_y + 1, x, "#")
@@ -189,10 +191,8 @@ def run_game(stdscr):
             stdscr.addch(y, min_x - 1, "#")
             stdscr.addch(y, max_x + 1, "#")
 
-        # Food
         stdscr.addch(food[0], food[1], "¤")
 
-        # Snake
         for y, x in snake:
             stdscr.addch(y, x, "O")
 
@@ -207,9 +207,9 @@ def main(stdscr):
     curses.use_default_colors()
 
     while True:
-        menu_result = main_menu(stdscr)
+        menu = main_menu(stdscr)
 
-        if menu_result is None:
+        if menu is None:
             break
 
         result = run_game(stdscr)
@@ -217,16 +217,14 @@ def main(stdscr):
         if result == "menu":
             continue
 
-        # GAME OVER MENU
-        if isinstance(result, int):
-            choice = game_over_menu(stdscr, result)
+        choice = game_over_menu(stdscr, result)
 
-            if choice == "Play Again":
-                continue
-            elif choice == "Menu":
-                continue
-            elif choice == "Quit":
-                break
+        if choice == "Play Again":
+            continue   # reruns loop → starts game again
+        elif choice == "Menu":
+            continue
+        elif choice == "Quit":
+            break
 
 if __name__ == "__main__":
     curses.wrapper(main)
