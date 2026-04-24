@@ -24,7 +24,10 @@ opposites = {
 
 # ---------------- UTIL ----------------
 def load_high_score():
-    return int(file_path.read_text())
+    try:
+        return int(file_path.read_text())
+    except:
+        return 0
 
 def save_high_score(score):
     current = load_high_score()
@@ -35,8 +38,6 @@ def save_high_score(score):
 def main_menu(stdscr):
     options = [
         "1. Original Snake",
-        "2. Expanding Map",
-        "3. Shrinking Map",
         "Quit"
     ]
 
@@ -44,13 +45,12 @@ def main_menu(stdscr):
 
     while True:
         stdscr.clear()
-
         h, w = stdscr.getmaxyx()
 
-        stdscr.addstr(5, w//2 - 6, "SNAKE GAME")
+        stdscr.addstr(5, w // 2 - 6, "SNAKE GAME")
 
         for i, option in enumerate(options):
-            x = w//2 - len(option)//2
+            x = w // 2 - len(option) // 2
             y = 10 + i
 
             if i == selected:
@@ -67,14 +67,49 @@ def main_menu(stdscr):
         elif key in [curses.KEY_DOWN, ord("s")]:
             selected = (selected + 1) % len(options)
         elif key in [10, 13]:
-            if selected == 3:
+            if selected == 1:
                 return None
-            return selected
+            return "play"
+
+        stdscr.refresh()
+
+# ---------------- GAME OVER MENU ----------------
+def game_over_menu(stdscr, score):
+    options = ["Play Again", "Menu", "Quit"]
+    selected = 0
+
+    while True:
+        stdscr.clear()
+        h, w = stdscr.getmaxyx()
+
+        stdscr.addstr(5, w // 2 - 5, "GAME OVER")
+        stdscr.addstr(7, w // 2 - 8, f"Score: {score}")
+        stdscr.addstr(8, w // 2 - 12, f"High Score: {load_high_score()}")
+
+        for i, option in enumerate(options):
+            x = w // 2 - len(option) // 2
+            y = 12 + i
+
+            if i == selected:
+                stdscr.attron(curses.A_REVERSE)
+                stdscr.addstr(y, x, option)
+                stdscr.attroff(curses.A_REVERSE)
+            else:
+                stdscr.addstr(y, x, option)
+
+        key = stdscr.getch()
+
+        if key in [curses.KEY_UP, ord("w")]:
+            selected = (selected - 1) % len(options)
+        elif key in [curses.KEY_DOWN, ord("s")]:
+            selected = (selected + 1) % len(options)
+        elif key in [10, 13]:
+            return options[selected]
 
         stdscr.refresh()
 
 # ---------------- GAME ----------------
-def run_game(stdscr, mode):
+def run_game(stdscr):
     curses.curs_set(0)
     stdscr.nodelay(1)
 
@@ -86,8 +121,10 @@ def run_game(stdscr, mode):
 
     def spawn_food():
         while True:
-            f = (random.randint(min_y, max_y),
-                 random.randint(min_x, max_x))
+            f = (
+                random.randint(min_y + 1, max_y - 1),
+                random.randint(min_x + 1, max_x - 1)
+            )
             if f not in snake:
                 return f
 
@@ -102,7 +139,7 @@ def run_game(stdscr, mode):
 
         new_dir = direction
         if key == ord("q"):
-            return
+            return "menu"
         elif key in [curses.KEY_UP, ord("w")]:
             new_dir = (-1, 0)
         elif key in [curses.KEY_DOWN, ord("s")]:
@@ -130,27 +167,13 @@ def run_game(stdscr, mode):
             new_head in snake
         ):
             save_high_score(score)
-            return
+            return score
 
         snake.insert(0, new_head)
 
         if new_head == food:
             score += 1
             food = spawn_food()
-
-            # GAME MODES
-            if mode == 1:  # expanding
-                min_x = max(1, min_x - 1)
-                min_y = max(1, min_y - 1)
-                max_x = min(WIDTH - 2, max_x + 1)
-                max_y = min(HEIGHT - 2, max_y + 1)
-
-            elif mode == 2:  # shrinking
-                min_x += 1
-                min_y += 1
-                max_x -= 1
-                max_y -= 1
-
         else:
             snake.pop()
 
@@ -184,19 +207,26 @@ def main(stdscr):
     curses.use_default_colors()
 
     while True:
-        mode = main_menu(stdscr)
+        menu_result = main_menu(stdscr)
 
-        if mode is None:
+        if menu_result is None:
             break
 
-        run_game(stdscr, mode)
+        result = run_game(stdscr)
 
-        # GAME OVER SCREEN
-        stdscr.clear()
-        stdscr.addstr(HEIGHT // 2, WIDTH // 2 - 5, "GAME OVER")
-        stdscr.addstr(HEIGHT // 2 + 1, WIDTH // 2 - 10, "Press any key...")
-        stdscr.refresh()
-        stdscr.getch()
+        if result == "menu":
+            continue
+
+        # GAME OVER MENU
+        if isinstance(result, int):
+            choice = game_over_menu(stdscr, result)
+
+            if choice == "Play Again":
+                continue
+            elif choice == "Menu":
+                continue
+            elif choice == "Quit":
+                break
 
 if __name__ == "__main__":
     curses.wrapper(main)
