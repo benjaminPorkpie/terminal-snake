@@ -165,8 +165,11 @@ def run_game(stdscr):
     score = 0
     normal_food_count = 0   # how many normal food eaten total
 
-    special_food = None     # (y, x) or None when not active
-    yellow_snake = False    # snake turns yellow after eating special food
+    special_food = None       # (y, x) or None when not active
+    yellow_snake_end = 0.0   # timestamp when yellow effect expires (0 = inactive)
+    YELLOW_DURATION = 5.0    # seconds snake stays yellow after eating special food
+
+    tick_count = 0           # counts every game tick for special food spawning
 
     move_delay = 0.1
     last_move = time.time()
@@ -205,6 +208,8 @@ def run_game(stdscr):
             continue
         last_move = time.time()
 
+        tick_count += 1
+
         hy, hx = snake[0]
         new_head = (hy + direction[0], hx + direction[1])
 
@@ -219,22 +224,22 @@ def run_game(stdscr):
 
         snake.insert(0, new_head)
 
+        # --- Spawn special food every 500 ticks (if not already active) ---
+        if tick_count % 500 == 0 and special_food is None:
+            special_food = spawn_special_food()
+
         # --- Eat normal food ---
         if new_head == food:
             score += 1
-            normal_food_count += 1
             food = spawn_food()
-            # Spawn special food every 25 normal food eaten (if not already active)
-            if normal_food_count % 25 == 0 and special_food is None:
-                special_food = spawn_special_food()
 
         # --- Eat special food: only while jumping ---
         elif special_food is not None and new_head == special_food:
             if jumping_ticks > 0:
-                # Halve snake length, keep score, turn snake yellow
+                # Halve snake length, keep score, flash snake yellow for 5s
                 half = max(1, len(snake) // 2)
                 snake = snake[:half]
-                yellow_snake = True
+                yellow_snake_end = time.time() + YELLOW_DURATION
                 special_food = None
             else:
                 # Not jumping — pass through, don't eat
@@ -274,22 +279,31 @@ def run_game(stdscr):
             except curses.error:
                 pass
 
-        # Draw snake: cyan while jumping, yellow if yellow_snake, else green
+        # Draw snake: cyan while jumping, flashing yellow during yellow effect, else green
+        now = time.time()
+        yellow_active = now < yellow_snake_end
+        # Flash: alternate bold/normal every 0.25s for the last 2s, always bold otherwise
         if jumping_ticks > 0:
             snake_color = curses.color_pair(3)
-        elif yellow_snake:
-            snake_color = curses.color_pair(4)
+            snake_attr = curses.color_pair(3)
+        elif yellow_active:
+            time_left = yellow_snake_end - now
+            if time_left < 2.0:
+                # Flash by toggling bold on/off rapidly
+                flash_on = int(now / 0.25) % 2 == 0
+                snake_attr = curses.color_pair(4) | (curses.A_BOLD if flash_on else 0)
+            else:
+                snake_attr = curses.color_pair(4) | curses.A_BOLD
         else:
-            snake_color = curses.color_pair(1)
+            snake_attr = curses.color_pair(1)
 
         for y, x in snake:
             try:
-                stdscr.addch(y, x, "O", snake_color)
+                stdscr.addch(y, x, "O", snake_attr)
             except curses.error:
                 pass
 
         # HUD
-        now = time.time()
         cooldown_remaining = max(0.0, jump_cooldown_end - now)
 
         if jumping_ticks > 0:
